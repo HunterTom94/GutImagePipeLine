@@ -6,6 +6,7 @@ from util import low_pass_filter, mean_confidence_interval
 from scipy.signal import find_peaks, peak_widths
 from matplotlib import pyplot as plt
 import pickle
+from scipy import stats
 from sys import exit
 
 
@@ -498,35 +499,52 @@ def organized_gen(input_folder, raw=0, svm_model_name='', filter_ls=[], custom_p
         sti_df = pd.DataFrame()
         for sti in sti_ls:
             for sample in raw_organized['sample_index'].unique():
+
                 raw_copy = raw_organized.copy()
                 raw_copy = raw_copy[raw_copy['sample_index'] == sample]
 
                 temp_sti_df = pd.DataFrame()
+                temp_sti_df['sample_index'] = raw_copy['sample_index']
                 temp_sti_df['ROI_index'] = raw_copy['ROI_index']
-                temp_sti_df['stimulation'] = [sti]*(temp_sti_df.shape[0])
+                temp_sti_df['stimulation'] = [sti] * (temp_sti_df.shape[0])
                 temp_sti_df['basal'] = raw_copy['{}_f0_mean'.format(sti)]
                 temp_sti_df['std_basal'] = raw_copy['{}_f0_std'.format(sti)]
-                temp_sti_df['cv'] = temp_sti_df['std_basal'] / temp_sti_df['basal']
-                temp_sti_df['average_basal'] = temp_sti_df['basal'].mean()
-                temp_sti_df['median_basal'] = temp_sti_df['basal'].median()
-                temp_sti_df['std_basal'] = temp_sti_df['basal'].std()
-                temp_sti_df['n_mean_basal'] = temp_sti_df['basal'] / temp_sti_df['basal'].mean()
-                temp_sti_df['n_median_basal'] = temp_sti_df['basal'] / temp_sti_df['basal'].median()
-                temp_sti_df['std_n_mean_basal'] = (temp_sti_df['basal'] - temp_sti_df['basal'].mean()) / temp_sti_df[
-                    'basal'].std()
-                temp_sti_df['std_n_median_basal'] = (temp_sti_df['basal'] - temp_sti_df['basal'].median()) / \
-                                                    temp_sti_df['basal'].std()
+                temp_sti_df['df'] = raw_copy['{}_f0_df'.format(sti)]
+                temp_sti_df['ddf'] = raw_copy['{}_f0_ddf'.format(sti)]
+
+                basal_describe = stats.describe(temp_sti_df['basal'].values.flatten(), nan_policy='omit')
+                std_describe = stats.describe(temp_sti_df['std_basal'].values.flatten(), nan_policy='omit')
+                df_describe = stats.describe(temp_sti_df['df'].values.flatten(), nan_policy='omit')
+                ddf_describe = stats.describe(temp_sti_df['ddf'].values.flatten(), nan_policy='omit')
+
+                temp_sti_df['1_basal'] = basal_describe.mean
+                temp_sti_df['1_std_basal'] = std_describe.mean
+                temp_sti_df['1_df'] = df_describe.mean
+                temp_sti_df['1_ddf'] = ddf_describe.mean
+
+                temp_sti_df['2_basal'] = basal_describe.variance
+                temp_sti_df['2_std_basal'] = std_describe.variance
+                temp_sti_df['2_df'] = df_describe.variance
+                temp_sti_df['2_ddf'] = ddf_describe.variance
+
+                temp_sti_df['3_basal'] = basal_describe.skewness
+                temp_sti_df['3_std_basal'] = std_describe.skewness
+                temp_sti_df['3_df'] = df_describe.skewness
+                temp_sti_df['3_ddf'] = ddf_describe.skewness
+
+                temp_sti_df['4_basal'] = basal_describe.kurtosis
+                temp_sti_df['4_std_basal'] = std_describe.kurtosis
+                temp_sti_df['4_df'] = df_describe.kurtosis
+                temp_sti_df['4_ddf'] = ddf_describe.kurtosis
 
                 sti_df = sti_df.append(temp_sti_df, ignore_index=True)
 
-        X = np.hstack((sti_df['basal'].to_numpy().reshape((-1, 1)), sti_df['std_basal'].to_numpy().reshape((-1, 1)),
-                       sti_df['cv'].to_numpy().reshape((-1, 1)), sti_df['average_basal'].to_numpy().reshape((-1, 1)),
-                       sti_df['median_basal'].to_numpy().reshape((-1, 1)),
-                       sti_df['std_basal'].to_numpy().reshape((-1, 1)),
-                       sti_df['n_mean_basal'].to_numpy().reshape((-1, 1)),
-                       sti_df['n_median_basal'].to_numpy().reshape((-1, 1)),
-                       sti_df['std_n_mean_basal'].to_numpy().reshape((-1, 1)),
-                       sti_df['std_n_median_basal'].to_numpy().reshape((-1, 1))))
+        X = sti_df[
+            ['basal', 'std_basal', 'df', 'ddf', '1_basal', '1_std_basal', '1_df', '1_ddf',
+             '2_basal', '2_std_basal', '2_df', '2_ddf', '3_basal', '3_std_basal', '3_df', '3_ddf', '4_basal',
+             '4_std_basal',
+             '4_df', '4_ddf']]
+        X = pd.DataFrame(data=stats.zscore(X.values, axis=0), columns=X.columns).values
 
         dict_name = 'D:\\Gut Imaging\\Videos\\CommonFiles\\svm_models.pkl'
         assert os.path.exists(dict_name)
